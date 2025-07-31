@@ -1,6 +1,6 @@
 [package]
 name = "gpu_layout"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Share host types with GPU shaders, with various layout specifications"
@@ -11,4 +11,4 @@ readme = "../README.md"
 glam = { version = "~0.30", features = ["bytemuck"] }
 bytemuck = "~1"
 
-gpu_layout_derive = "0.1.0"
+gpu_layout_derive = "0.2.0"

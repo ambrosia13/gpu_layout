@@ -13,14 +13,14 @@ pub fn gpu_bytes_derive(input: TokenStream) -> TokenStream {
                 let field_name = field.ident;
 
                 quote! {
-                    L::write(&mut buf, &self.#field_name);
+                    buf.write(&self.#field_name);
                 }
             });
 
             quote! {
                 impl gpu_layout::AsGpuBytes for #name {
-                    fn as_gpu_bytes<L: gpu_layout::GpuLayout + ?Sized>(&self) -> gpu_layout::GpuBytes {
-                        let mut buf = gpu_layout::GpuBytes::empty();
+                    fn as_gpu_bytes<L: gpu_layout::GpuLayout + ?Sized>(&self) -> gpu_layout::GpuBytes<L> {
+                        let mut buf = gpu_layout::GpuBytes::<L>::empty();
 
                         #(
                             #write_calls

@@ -1,11 +1,11 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, marker::PhantomData};
 
 // re-export the derive crate
 pub use gpu_layout_derive::AsGpuBytes;
 
 pub trait GpuLayout {
     /// default implementation following standard layout rules
-    fn write(buf: &mut GpuBytes, data: &impl AsGpuBytes) {
+    fn write(buf: &mut GpuBytes<Self>, data: &impl AsGpuBytes) {
         let data = data.as_gpu_bytes::<Self>();
 
         // skip if empty
@@ -23,28 +23,27 @@ pub trait GpuLayout {
         buf.bytes.to_mut().extend_from_slice(&data.bytes);
     }
 
-    fn write_array(buf: &mut GpuBytes, data: &[impl AsGpuBytes]);
+    fn write_array(buf: &mut GpuBytes<Self>, data: &[impl AsGpuBytes]);
 
-    fn align_to(buf: &mut GpuBytes, alignment: usize) {
+    fn align_to(buf: &mut GpuBytes<Self>, alignment: usize) {
         let offset = buf.bytes.len();
         let padding = offset.next_multiple_of(alignment) - offset;
 
         buf.bytes.to_mut().extend(std::iter::repeat_n(0u8, padding));
     }
 
-    /// makes sure the byte buffer as a whole is aligned and returns the raw data
-    fn finish(mut buf: GpuBytes) -> Cow<'_, [u8]> {
+    /// aligns the buffer as a whole
+    fn align(buf: &mut GpuBytes<Self>) {
         let alignment = buf.alignment;
-        Self::align_to(&mut buf, alignment);
-
-        buf.bytes
+        Self::align_to(buf, alignment);
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Std140Layout;
 
 impl GpuLayout for Std140Layout {
-    fn write_array(buf: &mut GpuBytes, data: &[impl AsGpuBytes]) {
+    fn write_array(buf: &mut GpuBytes<Self>, data: &[impl AsGpuBytes]) {
         for elem in data {
             let mut elem = elem.as_gpu_bytes::<Self>();
 
@@ -57,10 +56,11 @@ impl GpuLayout for Std140Layout {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct Std430Layout;
 
 impl GpuLayout for Std430Layout {
-    fn write_array(buf: &mut GpuBytes, data: &[impl AsGpuBytes]) {
+    fn write_array(buf: &mut GpuBytes<Self>, data: &[impl AsGpuBytes]) {
         for elem in data {
             let mut elem = elem.as_gpu_bytes::<Self>();
 
@@ -73,16 +73,19 @@ impl GpuLayout for Std430Layout {
     }
 }
 
-pub struct GpuBytes<'a> {
+#[derive(Debug, Clone)]
+pub struct GpuBytes<'a, L: GpuLayout + ?Sized> {
     bytes: Cow<'a, [u8]>,
     alignment: usize,
+    _layout: PhantomData<L>,
 }
 
-impl<'a> GpuBytes<'a> {
+impl<'a, L: GpuLayout + ?Sized> GpuBytes<'a, L> {
     pub fn empty() -> Self {
         Self {
             bytes: Vec::new().into(),
             alignment: 4,
+            _layout: PhantomData,
         }
     }
 
@@ -90,23 +93,32 @@ impl<'a> GpuBytes<'a> {
         Self {
             bytes: Cow::Borrowed(data),
             alignment,
+            _layout: PhantomData,
         }
     }
 
-    pub fn finish(&mut self) -> Cow<'a, [u8]> {
-        self.bytes.clone()
+    pub fn write(&mut self, data: &impl AsGpuBytes) -> &mut Self {
+        L::write(self, data);
+        self
+    }
+
+    /// Aligns the data according to the current alignment and returns it as a slice of bytes.
+    pub fn as_slice(&mut self) -> &[u8] {
+        L::align(self);
+        &self.bytes
     }
 }
 
 pub trait AsGpuBytes {
-    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes;
+    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L>;
 }
 
-impl AsGpuBytes for GpuBytes<'_> {
-    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+impl<L: GpuLayout + ?Sized> AsGpuBytes for GpuBytes<'_, L> {
+    fn as_gpu_bytes<U: GpuLayout + ?Sized>(&self) -> GpuBytes<U> {
         GpuBytes {
             bytes: Cow::Borrowed(&self.bytes),
             alignment: self.alignment,
+            _layout: PhantomData,
         }
     }
 }
@@ -114,14 +126,14 @@ impl AsGpuBytes for GpuBytes<'_> {
 macro_rules! primitive_impl_gpu_bytes {
     ($datatype:ty, alignment = $alignment:literal) => {
         impl AsGpuBytes for $datatype {
-            fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+            fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L> {
                 GpuBytes::from_slice(bytemuck::bytes_of(self), $alignment)
             }
         }
     };
     ($datatype:ty, columns = $columns:literal) => {
         impl AsGpuBytes for $datatype {
-            fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+            fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L> {
                 let mut buf = GpuBytes::empty();
 
                 for i in 0..$columns {
@@ -154,7 +166,7 @@ primitive_impl_gpu_bytes!(glam::Mat3, columns = 3);
 primitive_impl_gpu_bytes!(glam::Mat4, columns = 4);
 
 impl<T: AsGpuBytes> AsGpuBytes for &[T] {
-    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L> {
         let mut buf = GpuBytes::empty();
 
         L::write_array(&mut buf, self);
@@ -164,7 +176,7 @@ impl<T: AsGpuBytes> AsGpuBytes for &[T] {
 }
 
 impl<T: AsGpuBytes, const N: usize> AsGpuBytes for [T; N] {
-    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L> {
         let mut buf = GpuBytes::empty();
 
         L::write_array(&mut buf, self);
@@ -174,7 +186,7 @@ impl<T: AsGpuBytes, const N: usize> AsGpuBytes for [T; N] {
 }
 
 impl<T: AsGpuBytes> AsGpuBytes for Vec<T> {
-    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+    fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes<L> {
         let mut buf = GpuBytes::empty();
 
         L::write_array(&mut buf, self);

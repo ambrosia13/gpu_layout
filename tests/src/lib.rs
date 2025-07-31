@@ -1,20 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use glam::{UVec3, Vec3};
-    use gpu_layout::{AsGpuBytes, GpuBytes, GpuLayout, Std140Layout, Std430Layout};
+    use glam::UVec3;
+    use gpu_layout::{AsGpuBytes, GpuBytes, Std140Layout, Std430Layout};
 
     #[test]
     fn f32_and_vec3() {
-        let mut buf = GpuBytes::empty();
-
-        Std140Layout::write(&mut buf, &UVec3::splat(u32::MAX));
-        Std140Layout::write(&mut buf, &u32::MAX);
-
-        let bytes = Std140Layout::finish(buf);
+        let mut buf = GpuBytes::<Std430Layout>::empty();
+        let bytes = buf
+            .write(&UVec3::splat(u32::MAX))
+            .write(&u32::MAX)
+            .as_slice();
 
         #[rustfmt::skip]
         assert_eq!(
-            &*bytes,
+            bytes,
             &[
                 // x
                 u8::MAX, u8::MAX, u8::MAX, u8::MAX,
@@ -30,16 +29,15 @@ mod tests {
 
     #[test]
     fn vec3_and_vec3() {
-        let mut buf = GpuBytes::empty();
-
-        Std140Layout::write(&mut buf, &UVec3::splat(u32::MAX));
-        Std140Layout::write(&mut buf, &UVec3::splat(u32::MAX));
-
-        let bytes = Std140Layout::finish(buf);
+        let mut buf = GpuBytes::<Std140Layout>::empty();
+        let bytes = buf
+            .write(&UVec3::splat(u32::MAX))
+            .write(&UVec3::splat(u32::MAX))
+            .as_slice();
 
         #[rustfmt::skip]
         assert_eq!(
-            &*bytes,
+            bytes,
             &[
                 // x
                 u8::MAX, u8::MAX, u8::MAX, u8::MAX,
@@ -67,15 +65,12 @@ mod tests {
 
     #[test]
     fn std140_scalar_array() {
-        let mut buf = GpuBytes::empty();
-
-        Std140Layout::write_array(&mut buf, &[u32::MAX, u32::MAX]);
-
-        let bytes = Std140Layout::finish(buf);
+        let mut buf = GpuBytes::<Std140Layout>::empty();
+        let bytes = buf.write(&[u32::MAX, u32::MAX]).as_slice();
 
         #[rustfmt::skip]
         assert_eq!(
-            &*bytes,
+            bytes,
             &[
                 // scalar
                 u8::MAX, u8::MAX, u8::MAX, u8::MAX,
@@ -99,15 +94,12 @@ mod tests {
 
     #[test]
     fn std430_scalar_array() {
-        let mut buf = GpuBytes::empty();
-
-        Std430Layout::write_array(&mut buf, &[u32::MAX, u32::MAX]);
-
-        let bytes = Std430Layout::finish(buf);
+        let mut buf = GpuBytes::<Std430Layout>::empty();
+        let bytes = buf.write(&[u32::MAX, u32::MAX]).as_slice();
 
         #[rustfmt::skip]
         assert_eq!(
-            &*bytes,
+            bytes,
             &[
                 // scalar
                 u8::MAX, u8::MAX, u8::MAX, u8::MAX,
@@ -139,14 +131,10 @@ mod tests {
             a: vec![u32::MAX, u32::MAX],
         };
 
-        let a = a.as_gpu_bytes::<Std140Layout>();
-        let a = Std140Layout::finish(a);
+        let mut a = a.as_gpu_bytes::<Std140Layout>();
+        let a = a.as_slice();
 
         assert_eq!(a.len(), 16);
-
-        let b = b.as_gpu_bytes::<Std140Layout>();
-        let b = Std140Layout::finish(b);
-
-        assert_eq!(b.len(), 32);
+        assert_eq!(b.as_gpu_bytes::<Std140Layout>().as_slice().len(), 32);
     }
 }
