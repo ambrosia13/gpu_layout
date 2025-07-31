@@ -1,0 +1,6 @@
+[workspace]
+resolver = "3"
+members = ["gpu_layout", "gpu_layout_derive", "tests"]
+
+[patch.crates-io]
+gpu_layout_derive = { path = "gpu_layout_derive" }

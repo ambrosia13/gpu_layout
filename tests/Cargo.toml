@@ -1,0 +1,8 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+glam = { version = "~0.30"}
+gpu_layout = { path = "../gpu_layout" }
