@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "Share host types with GPU shaders, with various layout specifications"
+repository = "https://github.com/ambrosia13/gpu_layout"
+readme = "../README.md"
 
 [dependencies]
 glam = { version = "~0.30", features = ["bytemuck"] }

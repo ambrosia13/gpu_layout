@@ -119,6 +119,19 @@ macro_rules! primitive_impl_gpu_bytes {
             }
         }
     };
+    ($datatype:ty, columns = $columns:literal) => {
+        impl AsGpuBytes for $datatype {
+            fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {
+                let mut buf = GpuBytes::empty();
+
+                for i in 0..$columns {
+                    L::write(&mut buf, &self.col(i));
+                }
+
+                buf
+            }
+        }
+    };
 }
 
 primitive_impl_gpu_bytes!(f32, alignment = 4);
@@ -135,6 +148,10 @@ primitive_impl_gpu_bytes!(u32, alignment = 4);
 primitive_impl_gpu_bytes!(glam::UVec2, alignment = 8);
 primitive_impl_gpu_bytes!(glam::UVec3, alignment = 16);
 primitive_impl_gpu_bytes!(glam::UVec4, alignment = 16);
+
+primitive_impl_gpu_bytes!(glam::Mat2, columns = 2);
+primitive_impl_gpu_bytes!(glam::Mat3, columns = 3);
+primitive_impl_gpu_bytes!(glam::Mat4, columns = 4);
 
 impl<T: AsGpuBytes> AsGpuBytes for &[T] {
     fn as_gpu_bytes<L: GpuLayout + ?Sized>(&self) -> GpuBytes {

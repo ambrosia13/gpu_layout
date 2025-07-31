@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use glam::UVec3;
+    use glam::{UVec3, Vec3};
     use gpu_layout::{AsGpuBytes, GpuBytes, GpuLayout, Std140Layout, Std430Layout};
 
     #[test]
