@@ -2,6 +2,10 @@
 name = "gpu_layout_derive"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Derive crate for gpu_layout"
+repository = "https://github.com/ambrosia13/gpu_layout"
+readme = "../README.md"
 
 [lib]
 proc-macro = true
