@@ -29,7 +29,12 @@ pub trait GpuLayout {
         let offset = buf.bytes.len();
         let padding = offset.next_multiple_of(alignment) - offset;
 
-        buf.bytes.to_mut().extend(std::iter::repeat_n(0u8, padding));
+        // this `if` guard prevents copying/allocating new data if there is no padding required
+        // as such, users can manually implement AsGpuBytes to completely avoid copying entirely
+        // while still benefitting from this crate's api
+        if padding != 0 {
+            buf.bytes.to_mut().extend(std::iter::repeat_n(0u8, padding));
+        }
     }
 
     /// aligns the buffer as a whole
